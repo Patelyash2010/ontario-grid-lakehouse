@@ -36,11 +36,11 @@ IESO public reports (XML/CSV)     Open-Meteo weather API (JSON)
 
 ## Source data (verified October 2026)
 
-| Report | Directory | File pattern | Grain |
-|---|---|---|---|
-| Hourly demand | `Demand/` | `PUB_Demand_<yyyy>_v<N>.csv` | hour (MW) |
-| Output by fuel | `GenOutputbyFuelHourly/` | `PUB_GenOutputbyFuelHourly_<yyyy>_v<N>.xml` | hour × fuel (MWh) |
-| Day-ahead zonal price | `DAHourlyOntarioZonalPrice/` | `PUB_DAHourlyOntarioZonalPrice_<yyyymmdd>_v<N>.xml` | hour ($/MWh) |
+| Report                | Directory                    | File pattern                                        | Grain             |
+| --------------------- | ---------------------------- | --------------------------------------------------- | ----------------- |
+| Hourly demand         | `Demand/`                    | `PUB_Demand_<yyyy>_v<N>.csv`                        | hour (MW)         |
+| Output by fuel        | `GenOutputbyFuelHourly/`     | `PUB_GenOutputbyFuelHourly_<yyyy>_v<N>.xml`         | hour × fuel (MWh) |
+| Day-ahead zonal price | `DAHourlyOntarioZonalPrice/` | `PUB_DAHourlyOntarioZonalPrice_<yyyymmdd>_v<N>.xml` | hour ($/MWh)      |
 
 Base URL: `https://reports-public.ieso.ca/public/`
 
@@ -65,7 +65,7 @@ which confirms there is no daylight-saving shift to handle. Every row stores
 
 **4. Bad rows are quarantined, not dropped.**
 Out-of-range hours, invalid dates, missing or negative values and unknown fuel
-types go to a quarantine table with a `rejection_reason`. Negative *prices*
+types go to a quarantine table with a `rejection_reason`. Negative _prices_
 are kept: they are valid in electricity markets.
 
 **5. Schema changes fail loudly.**
@@ -78,6 +78,13 @@ Ontario moved from a single price (HOEP) to zonal/locational prices on
 
 **7. Full lineage.**
 Every silver row carries `source_file` and `report_created_at`.
+
+**8. Unexpected source categories are quarantined, then decided on deliberately.**
+The first full run quarantined 24 rows: a category called `CONTROL ACTIONS`
+appeared in the fuel report on a single day (2026-07-15), empty for hours 1-9
+and zero afterwards. It is not in IESO's report documentation and is not a
+generation source. It is now kept in silver with `is_generation = False` and
+excluded from fuel-mix totals. Any other unknown category still goes to quarantine.
 
 ## Repo layout
 
