@@ -1,0 +1,67 @@
+{
+	"name": "pl_ingest_ieso_daily",
+	"properties": {
+		"activities": [
+			{
+				"name": "foreach_report",
+				"type": "ForEach",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@json('[{\"report\":\"Demand\",\"period\":\"year\",\"ext\":\"csv\"},{\"report\":\"GenOutputbyFuelHourly\",\"period\":\"year\",\"ext\":\"xml\"},{\"report\":\"DAHourlyOntarioZonalPrice\",\"period\":\"day\",\"ext\":\"xml\"}]')",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "run_copy_file",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "pl_ingest_ieso_file",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"report": {
+										"value": "@item().report",
+										"type": "Expression"
+									},
+									"filename": {
+										"value": "@concat('PUB_', item().report, '_', if(equals(item().period, 'year'), formatDateTime(convertFromUtc(utcNow(), 'Eastern Standard Time'), 'yyyy'), formatDateTime(convertFromUtc(utcNow(), 'Eastern Standard Time'), 'yyyyMMdd')), '.', item().ext)",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "run_weather_daily",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_ingest_weather_daily",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2026-10-23T09:10:32Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

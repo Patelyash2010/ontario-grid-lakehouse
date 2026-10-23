@@ -1,0 +1,81 @@
+{
+	"name": "pl_ingest_ieso_file",
+	"properties": {
+		"activities": [
+			{
+				"name": "copy_ieso_to_bronze",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 60,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "BinarySource",
+						"storeSettings": {
+							"type": "HttpReadSettings",
+							"requestMethod": "GET",
+							"requestTimeout": ""
+						},
+						"formatSettings": {
+							"type": "BinaryReadSettings"
+						}
+					},
+					"sink": {
+						"type": "BinarySink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						}
+					},
+					"enableStaging": false
+				},
+				"inputs": [
+					{
+						"referenceName": "ds_http_ieso_file",
+						"type": "DatasetReference",
+						"parameters": {
+							"relativeUrl": {
+								"value": "@concat(pipeline().parameters.report, '/', pipeline().parameters.fileName)",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "ds_adls_bronze_file",
+						"type": "DatasetReference",
+						"parameters": {
+							"folderPath": {
+								"value": "@concat(pipeline().parameters.report, '/ingest_date=', formatDateTime(utcNow(), 'yyyy-MM-dd'))",
+								"type": "Expression"
+							},
+							"fileName": {
+								"value": "@pipeline().parameters.filename",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			}
+		],
+		"parameters": {
+			"report": {
+				"type": "string",
+				"defaultValue": "Demand"
+			},
+			"filename": {
+				"type": "string",
+				"defaultValue": "PUB_Demand_2025_v396.csv"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-10-23T07:54:38Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

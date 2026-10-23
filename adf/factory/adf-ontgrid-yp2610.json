@@ -1,0 +1,15 @@
+{
+	"name": "adf-ontgrid-yp2610",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "canadacentral",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "9b639f12-2f3b-4fea-aefe-8f891f5d2558",
+		"tenantId": "44376307-b429-42ad-8c25-28cd496f4772"
+	}
+}

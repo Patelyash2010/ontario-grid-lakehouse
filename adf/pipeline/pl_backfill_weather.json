@@ -1,0 +1,95 @@
+{
+	"name": "pl_backfill_weather",
+	"properties": {
+		"activities": [
+			{
+				"name": "foreach_city",
+				"type": "ForEach",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@json('[{\"city\":\"toronto\",\"lat\":\"43.65\",\"lon\":\"-79.38\"},{\"city\":\"ottawa\",\"lat\":\"45.42\",\"lon\":\"-75.70\"},{\"city\":\"london\",\"lat\":\"42.98\",\"lon\":\"-81.25\"}]')",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "copy_weather_history",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 3,
+								"retryIntervalInSeconds": 60,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "BinarySource",
+									"storeSettings": {
+										"type": "HttpReadSettings",
+										"requestMethod": "GET"
+									},
+									"formatSettings": {
+										"type": "BinaryReadSettings"
+									}
+								},
+								"sink": {
+									"type": "BinarySink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									}
+								},
+								"enableStaging": false
+							},
+							"inputs": [
+								{
+									"referenceName": "ds_http_openmeteo_archive",
+									"type": "DatasetReference",
+									"parameters": {
+										"relativeUrl": {
+											"value": "@concat('v1/archive?latitude=', item().lat, '&longitude=', item().lon, '&start_date=', pipeline().parameters.startDate, '&end_date=', pipeline().parameters.endDate, '&hourly=temperature_2m,relative_humidity_2m&timezone=GMT')",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "ds_adls_bronze_file",
+									"type": "DatasetReference",
+									"parameters": {
+										"folderPath": {
+											"value": "@concat('weather/ingest_date=', formatDateTime(utcNow(), 'yyyy-MM-dd'))",
+											"type": "Expression"
+										},
+										"fileName": {
+											"value": "@concat('openmeteo_archive_', item().city, '_', pipeline().parameters.startDate, '_', pipeline().parameters.endDate, '.json')",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"startDate": {
+				"type": "string",
+				"defaultValue": "2026-01-01"
+			},
+			"endDate": {
+				"type": "string",
+				"defaultValue": "2026-10-16"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-10-23T09:10:31Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
