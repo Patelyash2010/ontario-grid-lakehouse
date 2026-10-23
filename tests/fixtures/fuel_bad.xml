@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document docID="GenOutputbyFuelHourly" xmlns="http://www.ieso.ca/schema">
+<DocHeader><DocTitle>Generator Output by Fuel Type Hourly Report</DocTitle><DocRevision>1</DocRevision>
+<CreatedAt>2026-10-22T06:50:53</CreatedAt></DocHeader>
+<DocBody><DeliveryYear>2026</DeliveryYear><DailyData><Day>2026-01-01</Day>
+<HourlyData><Hour>1</Hour>
+<FuelTotal><Fuel>NUCLEAR</Fuel><EnergyValue><OutputQuality>0</OutputQuality><Output>9602</Output></EnergyValue></FuelTotal>
+<FuelTotal><Fuel>COAL</Fuel><EnergyValue><OutputQuality>0</OutputQuality><Output>100</Output></EnergyValue></FuelTotal>
+<FuelTotal><Fuel>GAS</Fuel><EnergyValue><OutputQuality>0</OutputQuality><Output></Output></EnergyValue></FuelTotal>
+<FuelTotal><Fuel>WIND</Fuel><EnergyValue><OutputQuality>0</OutputQuality><Output>-3</Output></EnergyValue></FuelTotal>
+</HourlyData>
+</DailyData></DocBody></Document>

@@ -1,0 +1,13 @@
+[project]
+name = "ontario-grid-lakehouse"
+version = "0.1.0"
+description = "Azure lakehouse for Ontario (IESO) electricity demand, supply mix and prices"
+requires-python = ">=3.10"
+dependencies = []          # parsers use only the standard library
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

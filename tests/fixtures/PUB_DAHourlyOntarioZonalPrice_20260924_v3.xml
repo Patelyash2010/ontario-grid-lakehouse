@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document docID="DAHourlyOntarioZonalPrice" xmlns="http://www.ieso.ca/schema">
+<DocHeader><DocTitle>Day Ahead Hourly Ontario Zonal Energy Price Report</DocTitle><DocRevision>1</DocRevision>
+<CreatedAt>2026-09-23T14:27:20</CreatedAt></DocHeader>
+<DocBody><DeliveryDate>2026-09-24</DeliveryDate>
+<HourlyPriceComponents><PricingHour>1</PricingHour><ZonalPrice>24.05</ZonalPrice><LossPriceCapped>0.26</LossPriceCapped><CongestionPriceCapped>-0.2</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>2</PricingHour><ZonalPrice>24.98</ZonalPrice><LossPriceCapped>0.34</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>3</PricingHour><ZonalPrice>26.39</ZonalPrice><LossPriceCapped>0.39</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>4</PricingHour><ZonalPrice>31.23</ZonalPrice><LossPriceCapped>0.48</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>5</PricingHour><ZonalPrice>32.13</ZonalPrice><LossPriceCapped>0.41</LossPriceCapped><CongestionPriceCapped>-0.28</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>6</PricingHour><ZonalPrice>44.81</ZonalPrice><LossPriceCapped>0.52</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>7</PricingHour><ZonalPrice>48.33</ZonalPrice><LossPriceCapped>0.3</LossPriceCapped><CongestionPriceCapped>-0.01</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>8</PricingHour><ZonalPrice>45.6</ZonalPrice><LossPriceCapped>0.2</LossPriceCapped><CongestionPriceCapped>-0.45</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>9</PricingHour><ZonalPrice>37.86</ZonalPrice><LossPriceCapped>0.2</LossPriceCapped><CongestionPriceCapped>-0.02</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>10</PricingHour><ZonalPrice>35.55</ZonalPrice><LossPriceCapped>0.21</LossPriceCapped><CongestionPriceCapped>-0.01</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>11</PricingHour><ZonalPrice>33.34</ZonalPrice><LossPriceCapped>0.15</LossPriceCapped><CongestionPriceCapped>-0.3</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>12</PricingHour><ZonalPrice>35.15</ZonalPrice><LossPriceCapped>0.16</LossPriceCapped><CongestionPriceCapped>-0.01</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>13</PricingHour><ZonalPrice>36.12</ZonalPrice><LossPriceCapped>0.19</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>14</PricingHour><ZonalPrice>37.77</ZonalPrice><LossPriceCapped>0.19</LossPriceCapped><CongestionPriceCapped>-0.35</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>15</PricingHour><ZonalPrice>37.89</ZonalPrice><LossPriceCapped>0.21</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>16</PricingHour><ZonalPrice>37.97</ZonalPrice><LossPriceCapped>0.21</LossPriceCapped><CongestionPriceCapped>-0.24</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>17</PricingHour><ZonalPrice>45.79</ZonalPrice><LossPriceCapped>0.15</LossPriceCapped><CongestionPriceCapped>-0.24</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>18</PricingHour><ZonalPrice>52.35</ZonalPrice><LossPriceCapped>0.25</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>19</PricingHour><ZonalPrice>64.43</ZonalPrice><LossPriceCapped>0.29</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>20</PricingHour><ZonalPrice>56.45</ZonalPrice><LossPriceCapped>0.25</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>21</PricingHour><ZonalPrice>46.62</ZonalPrice><LossPriceCapped>0.21</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>22</PricingHour><ZonalPrice>39.84</ZonalPrice><LossPriceCapped>0.34</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>23</PricingHour><ZonalPrice>37.54</ZonalPrice><LossPriceCapped>0.26</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+<HourlyPriceComponents><PricingHour>24</PricingHour><ZonalPrice>37.86</ZonalPrice><LossPriceCapped>0.3</LossPriceCapped><CongestionPriceCapped>0</CongestionPriceCapped><Flag>DSO-RD</Flag></HourlyPriceComponents>
+</DocBody></Document>
