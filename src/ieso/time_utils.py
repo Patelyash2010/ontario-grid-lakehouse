@@ -35,3 +35,18 @@ def hour_ending_to_utc(delivery_date: date, hour_ending: int) -> tuple[datetime,
     )
     start_utc = start_local.astimezone(timezone.utc)
     return start_utc, start_utc + timedelta(hours=1)
+
+
+def utc_to_hour_ending(start_utc: datetime) -> tuple[date, int]:
+    """Inverse of hour_ending_to_utc: UTC interval start -> IESO (date, hour-ending).
+
+    Used for sources that report in UTC (weather) so every silver table shares
+    the same delivery_date / hour_ending columns and joins cleanly.
+
+    >>> utc_to_hour_ending(datetime(2026, 1, 1, 5, tzinfo=timezone.utc))
+    (datetime.date(2026, 1, 1), 1)
+    """
+    if start_utc.tzinfo is None:
+        raise ValueError("start_utc must be timezone-aware")
+    local = start_utc.astimezone(EST)
+    return local.date(), local.hour + 1

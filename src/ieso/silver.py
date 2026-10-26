@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Callable, Iterable, Optional
 
 from .parsers import (
@@ -29,6 +29,7 @@ from .parsers import (
     parse_demand_csv,
     parse_fuel_hourly_xml,
 )
+from .weather import parse_openmeteo_json
 
 _COMMON_TAIL = [
     ("source_file", "STRING"),
@@ -44,6 +45,12 @@ class ReportConfig:
     table: str                            # silver table name
     keys: tuple[str, ...]                 # business key of one row
     columns: tuple[tuple[str, str], ...]  # (name, Spark SQL type), in table order
+    folder: str = ""                      # bronze folder; defaults to the report name
+    file_prefixes: tuple[str, ...] = ("PUB_",)
+    file_suffixes: tuple[str, ...] = (".csv", ".xml")
+    # Weather files carry no "created at" inside, so the time the file landed in
+    # bronze (its modification time) decides which version of an hour is newest.
+    created_from_file_time: bool = False
 
     @property
     def ddl(self) -> str:
@@ -98,7 +105,28 @@ REPORTS: dict[str, ReportConfig] = {
             ("flag", "STRING"),
         ] + _COMMON_TAIL),
     ),
+    "weather": ReportConfig(
+        parser=parse_openmeteo_json,
+        binary=False,
+        table="weather_hourly",
+        keys=("interval_start_utc", "city"),
+        columns=tuple(_TIME + [
+            ("city", "STRING"),
+            ("temperature_c", "DOUBLE"),
+            ("relative_humidity_pct", "DOUBLE"),
+            ("weather_source", "STRING"),
+            ("is_forecast", "BOOLEAN"),   # hour not finished when the file was fetched
+        ] + _COMMON_TAIL),
+        folder="weather",
+        file_prefixes=("openmeteo_",),
+        file_suffixes=(".json",),
+        created_from_file_time=True,
+    ),
 }
+
+
+def bronze_folder(report: str) -> str:
+    return REPORTS[report].folder or report
 
 QUARANTINE_COLUMNS: tuple[tuple[str, str], ...] = (
     ("report", "STRING"),
@@ -113,18 +141,24 @@ QUARANTINE_DDL = ", ".join(f"{n} {t}" for n, t in QUARANTINE_COLUMNS)
 
 # --------------------------------------------------------------------------- file selection
 
-def files_to_process(listing: Iterable[dict], processed: Iterable[tuple[str, int]]) -> list[dict]:
+def files_to_process(
+    listing: Iterable[dict],
+    processed: Iterable[tuple[str, int]],
+    prefixes: tuple[str, ...] = ("PUB_",),
+    suffixes: tuple[str, ...] = (".csv", ".xml"),
+) -> list[dict]:
     """Return files not loaded before, oldest first.
 
     listing:   dicts with keys path, modification_time (ms), size
     processed: (path, modification_time) pairs already in ops.processed_files
-    Only IESO report files (PUB_*.csv / PUB_*.xml) are considered.
+    Only names matching the report's prefixes/suffixes are considered
+    (IESO: PUB_*.csv / PUB_*.xml, weather: openmeteo_*.json).
     """
     done = {(p, int(m)) for p, m in processed}
     new = []
     for f in listing:
         name = f["path"].rstrip("/").rsplit("/", 1)[-1]
-        if not (name.startswith("PUB_") and name.endswith((".csv", ".xml"))):
+        if not (name.startswith(prefixes) and name.endswith(suffixes)):
             continue
         if (f["path"], int(f["modification_time"])) in done:
             continue
@@ -142,15 +176,33 @@ def normalize_created_at(value: Optional[str]) -> Optional[str]:
     return datetime.fromisoformat(value.strip().replace(" ", "T")).strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def parse_bronze_file(report: str, bronze_path: str, data: bytes) -> ParseResult:
+def parse_bronze_file(report: str, bronze_path: str, data: bytes,
+                      modification_time: Optional[int] = None) -> ParseResult:
+    """Parse one bronze file and add lineage columns.
+
+    modification_time (ms since epoch) is required for sources whose files have
+    no internal "created at" (weather): it becomes report_created_at, and hours
+    that had not finished at that moment are flagged is_forecast=True.
+    """
     cfg = REPORTS[report]
     file_name = bronze_path.rstrip("/").rsplit("/", 1)[-1]
     content = data if cfg.binary else data.decode("utf-8-sig", errors="replace")
     result = cfg.parser(content, file_name)
-    created = normalize_created_at(result.report_created_at)
+
+    fetched_at = None
+    if cfg.created_from_file_time:
+        if modification_time is None:
+            raise ValueError(f"{report}: modification_time is required")
+        fetched_at = datetime.fromtimestamp(int(modification_time) / 1000, tz=timezone.utc)
+        created = fetched_at.strftime("%Y-%m-%dT%H:%M:%S")
+    else:
+        created = normalize_created_at(result.report_created_at)
+
     for r in result.rows:
         r["report_created_at"] = created
         r["bronze_path"] = bronze_path
+        if fetched_at is not None:
+            r["is_forecast"] = datetime.fromisoformat(r["interval_end_utc"]) > fetched_at
     for r in result.rejects:
         r["bronze_path"] = bronze_path
     return result
