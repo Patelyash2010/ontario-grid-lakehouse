@@ -108,7 +108,7 @@ python scripts/run_local.py      # fetch real data into ./data
 - [x] Day 1: Azure resource group, ADLS Gen2, Key Vault, budget alert
 - [x] Day 2: parsers, manifest, quarantine, tests, local pipeline
 - [x] Day 3: Data Factory pipeline: demand → bronze, with manifest
-- [x ] Day 4: add fuel mix, price and weather sources
+- [x] Day 4: add fuel mix, price and weather sources
 - [ ] Day 5-6: Databricks silver notebooks + Delta MERGE, backfill
 - [ ] Day 7-8: gold star schema, marts, daily schedule
 - [ ] Day 9: Power BI report + architecture diagram
