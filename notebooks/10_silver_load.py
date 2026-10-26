@@ -111,11 +111,16 @@ def log_run(status, message="", **counts):
           .write.mode("append").saveAsTable(f"{CATALOG}.ops.pipeline_runs"))
 
 
-if not new_files:
+# dbutils.notebook.exit() stops a scheduled job, but in an interactive "Run all"
+# later cells can still run - so every remaining step checks HAS_WORK as well.
+HAS_WORK = bool(new_files)
+all_rows, all_rejects, rows = [], [], []
+
+if not HAS_WORK:
     log_run("NO_NEW_FILES")
+    print("No new files - nothing to do.")
     dbutils.notebook.exit("No new files - nothing to do.")
 
-all_rows, all_rejects = [], []
 try:
     for f in new_files:
         with open(f["path"], "rb") as fh:
@@ -129,7 +134,8 @@ except Exception as exc:
     raise
 
 rows = latest_per_key(all_rows, cfg.keys)
-print(f"parsed {len(all_rows):,} rows -> {len(rows):,} after keeping the newest version per key")
+if HAS_WORK:
+    print(f"parsed {len(all_rows):,} rows -> {len(rows):,} after keeping the newest version per key")
 
 # COMMAND ----------
 
@@ -137,14 +143,18 @@ print(f"parsed {len(all_rows):,} rows -> {len(rows):,} after keeping the newest 
 
 # COMMAND ----------
 
-src = (spark.createDataFrame(to_tuples(rows, cfg.columns), cfg.ddl)
-            .withColumn("silver_loaded_at", F.current_timestamp()))
-
-if not spark.catalog.tableExists(TARGET):
+inserted, updated = 0, 0
+if not HAS_WORK:
+    pass
+elif not spark.catalog.tableExists(TARGET):
+    src = (spark.createDataFrame(to_tuples(rows, cfg.columns), cfg.ddl)
+                .withColumn("silver_loaded_at", F.current_timestamp()))
     src.write.saveAsTable(TARGET)
     inserted, updated = src.count(), 0
     print(f"created {TARGET} with {inserted:,} rows")
 else:
+    src = (spark.createDataFrame(to_tuples(rows, cfg.columns), cfg.ddl)
+                .withColumn("silver_loaded_at", F.current_timestamp()))
     src.createOrReplaceTempView("src_batch")
     spark.sql(merge_sql(TARGET, "src_batch", cfg.keys))
     metrics = spark.sql(f"DESCRIBE HISTORY {TARGET} LIMIT 1").collect()[0]["operationMetrics"]
@@ -158,19 +168,20 @@ else:
 
 # COMMAND ----------
 
-if all_rejects:
+if HAS_WORK and all_rejects:
     (spark.createDataFrame(reject_tuples(REPORT, all_rejects, RUN_ID), QUARANTINE_DDL)
           .withColumn("quarantined_at", F.current_timestamp())
           .write.mode("append").saveAsTable(f"{CATALOG}.quarantine.ieso_rejects"))
 
-(spark.createDataFrame(
-        [(REPORT, f["path"], f["modification_time"], f["size"], RUN_ID) for f in new_files],
-        "report STRING, bronze_path STRING, modification_time BIGINT, size BIGINT, run_id STRING")
-      .withColumn("processed_at", F.current_timestamp())
-      .write.mode("append").saveAsTable(f"{CATALOG}.ops.processed_files"))
+if HAS_WORK:
+    (spark.createDataFrame(
+            [(REPORT, f["path"], f["modification_time"], f["size"], RUN_ID) for f in new_files],
+            "report STRING, bronze_path STRING, modification_time BIGINT, size BIGINT, run_id STRING")
+          .withColumn("processed_at", F.current_timestamp())
+          .write.mode("append").saveAsTable(f"{CATALOG}.ops.processed_files"))
 
-log_run("SUCCEEDED", files=len(new_files), parsed=len(all_rows), dedup=len(rows),
-        quarantined=len(all_rejects), inserted=inserted, updated=updated)
+    log_run("SUCCEEDED", files=len(new_files), parsed=len(all_rows), dedup=len(rows),
+            quarantined=len(all_rejects), inserted=inserted, updated=updated)
 
 print(f"done: {len(new_files)} file(s), {inserted:,} inserted, {updated:,} updated, "
       f"{len(all_rejects)} quarantined")
@@ -181,23 +192,25 @@ print(f"done: {len(new_files)} file(s), {inserted:,} inserted, {updated:,} updat
 
 # COMMAND ----------
 
-display(spark.sql(f"""
-  SELECT COUNT(*)                       AS rows,
-         MIN(interval_start_utc)        AS first_hour_utc,
-         MAX(interval_start_utc)        AS last_hour_utc,
-         COUNT(DISTINCT delivery_date)  AS days,
-         MAX(report_created_at)         AS newest_ieso_file
-  FROM {TARGET}
-"""))
+if spark.catalog.tableExists(TARGET):
+    display(spark.sql(f"""
+      SELECT COUNT(*)                       AS rows,
+             MIN(interval_start_utc)        AS first_hour_utc,
+             MAX(interval_start_utc)        AS last_hour_utc,
+             COUNT(DISTINCT delivery_date)  AS days,
+             MAX(report_created_at)         AS newest_ieso_file
+      FROM {TARGET}
+    """))
 
 # COMMAND ----------
 
-# Days without a full set of hours (usually just the current, still-filling day;
-# for weather also 2025-12-31, because UTC midnight Jan 1 is 7 PM Dec 31 in Ontario)
-display(spark.sql(f"""
-  SELECT delivery_date, COUNT(DISTINCT hour_ending) AS hours
-  FROM {TARGET}
-  GROUP BY delivery_date
-  HAVING COUNT(DISTINCT hour_ending) < 24
-  ORDER BY delivery_date
-"""))
+if spark.catalog.tableExists(TARGET):
+    # Days without a full set of hours (usually just the current, still-filling day;
+    # for weather also 2025-12-31, because UTC midnight Jan 1 is 7 PM Dec 31 in Ontario)
+    display(spark.sql(f"""
+      SELECT delivery_date, COUNT(DISTINCT hour_ending) AS hours
+      FROM {TARGET}
+      GROUP BY delivery_date
+      HAVING COUNT(DISTINCT hour_ending) < 24
+      ORDER BY delivery_date
+    """))
