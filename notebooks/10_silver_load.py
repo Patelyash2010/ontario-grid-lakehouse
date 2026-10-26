@@ -1,13 +1,14 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 10 · IESO bronze → silver
+# MAGIC # 10 · Bronze → silver loader
 # MAGIC
-# MAGIC Incrementally loads one IESO report from the bronze volume into a silver Delta table.
+# MAGIC Incrementally loads one source (an IESO report or Open-Meteo weather) from the bronze
+# MAGIC volume into a silver Delta table. A Databricks Job runs it once per source, in parallel.
 # MAGIC
-# MAGIC 1. List files under `/Volumes/ontgrid/bronze/raw/<report>/`
+# MAGIC 1. List files under `/Volumes/ontgrid/bronze/raw/<folder>/`
 # MAGIC 2. Skip files already recorded in `ontgrid.ops.processed_files` (path + modification time)
 # MAGIC 3. Parse new files with the tested parsers in `src/ieso` (UTC timestamps, quarantine of bad rows)
-# MAGIC 4. Keep the newest IESO version of each row, then `MERGE` into silver (only newer data overwrites)
+# MAGIC 4. Keep the newest version of each row (IESO: file creation time; weather: fetch time), then `MERGE` into silver (only newer data overwrites)
 # MAGIC 5. Write rejects to `ontgrid.quarantine.ieso_rejects`, mark files processed, log the run
 # MAGIC
 # MAGIC Run it again with no new files and nothing changes.
@@ -16,8 +17,8 @@
 
 dbutils.widgets.dropdown(
     "report", "Demand",
-    ["Demand", "GenOutputbyFuelHourly", "DAHourlyOntarioZonalPrice"],
-    "IESO report",
+    ["Demand", "GenOutputbyFuelHourly", "DAHourlyOntarioZonalPrice", "weather"],
+    "Source",
 )
 REPORT = dbutils.widgets.get("report")
 
@@ -34,6 +35,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.getcwd(), "..", "src")))
 from ieso.silver import (  # noqa: E402
     QUARANTINE_DDL,
     REPORTS,
+    bronze_folder,
     files_to_process,
     latest_per_key,
     merge_sql,
@@ -72,7 +74,7 @@ def list_files(path):
     return out
 
 
-listing = list_files(f"{BRONZE_ROOT}/{REPORT}")
+listing = list_files(f"{BRONZE_ROOT}/{bronze_folder(REPORT)}")
 processed = [
     (r.bronze_path, r.modification_time)
     for r in spark.table(f"{CATALOG}.ops.processed_files")
@@ -80,7 +82,7 @@ processed = [
                   .select("bronze_path", "modification_time")
                   .collect()
 ]
-new_files = files_to_process(listing, processed)
+new_files = files_to_process(listing, processed, cfg.file_prefixes, cfg.file_suffixes)
 
 print(f"{len(listing)} file(s) in bronze, {len(processed)} already processed, {len(new_files)} new")
 for f in new_files:
@@ -117,12 +119,12 @@ all_rows, all_rejects = [], []
 try:
     for f in new_files:
         with open(f["path"], "rb") as fh:
-            result = parse_bronze_file(REPORT, f["path"], fh.read())
+            result = parse_bronze_file(REPORT, f["path"], fh.read(), f["modification_time"])
         all_rows += result.rows
         all_rejects += result.rejects
         print(f"  parsed {f['path'].rsplit('/', 1)[-1]}: {len(result.rows):,} rows, {len(result.rejects)} rejects")
 except Exception as exc:
-    # e.g. the source changed its column layout: stop loudly, record why
+    # e.g. the source changed its layout or an API returned an error: stop loudly, record why
     log_run("FAILED", f"parse error: {exc}", files=len(new_files))
     raise
 
@@ -190,7 +192,8 @@ display(spark.sql(f"""
 
 # COMMAND ----------
 
-# Days without a full set of hours (usually just the current, still-filling day)
+# Days without a full set of hours (usually just the current, still-filling day;
+# for weather also 2025-12-31, because UTC midnight Jan 1 is 7 PM Dec 31 in Ontario)
 display(spark.sql(f"""
   SELECT delivery_date, COUNT(DISTINCT hour_ending) AS hours
   FROM {TARGET}
