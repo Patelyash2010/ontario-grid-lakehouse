@@ -38,6 +38,7 @@ def main() -> None:
 
     results = run_eval(agent, backend, questions, pause_s=args.pause)
 
+    unavailable = [r for r in results if r.outcome == "unavailable"]
     passed = sum(r.passed for r in results)
     answerable = [r for r in results if r.id.startswith("q")]
     refusals = [r for r in results if r.id.startswith("r")]
@@ -53,13 +54,20 @@ def main() -> None:
         f"- Answerable questions correct: {sum(r.passed for r in answerable)}/{len(answerable)}",
         f"- Off-topic / unsafe requests refused or blocked: {sum(r.passed for r in refusals)}/{len(refusals)}",
         f"- Average {avg_s:.1f} s and {avg_tokens:,.0f} tokens per question",
+        *([f"- Provider unavailable after retries (not a model error, re-run these): "
+           f"{', '.join(r.id for r in unavailable)}"] if unavailable else []),
         "",
-        "| id | pass | outcome | question | answer |",
-        "|---|---|---|---|---|",
+        "| id | pass | outcome | question | answer | expected |",
+        "|---|---|---|---|---|---|",
     ]
     for r in results:
         answer = r.answer.replace("|", "/").replace("\n", " ")
-        lines.append(f"| {r.id} | {'✅' if r.passed else '❌'} | {r.outcome} | {r.question} | {answer} |")
+        lines.append(f"| {r.id} | {'✅' if r.passed else '❌'} | {r.outcome} | {r.question} | {answer} | {r.expected} |")
+    failed = [r for r in results if not r.passed]
+    if failed:
+        lines += ["", "## SQL of failed questions", ""]
+        for r in failed:
+            lines += [f"**{r.id}** {r.question}", "", "```sql", r.sql or "-- no SQL", "```", ""]
     out = REPO / "eval" / "results.md"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

@@ -53,7 +53,11 @@ def show(ans, settings) -> None:
         st.info(f"I can only answer questions about this Ontario grid data. {ans.text}")
         return
     if ans.error:
-        st.error(f"I couldn't answer that: {ans.error}")
+        from chatbot.evaluate import is_transient
+        if is_transient(ans.error):
+            st.warning("The model service is busy right now (free tier). Please ask again in a minute.")
+        else:
+            st.error(f"I couldn't answer that: {ans.error}")
     else:
         st.markdown(ans.text)
         chart(ans.data)

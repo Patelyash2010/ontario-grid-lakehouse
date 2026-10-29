@@ -39,6 +39,16 @@ Rules:
   instead of date functions.
 - Relative dates ("last week", "this year") are relative to today. Use DATE'yyyy-mm-dd' literals.
 - Price questions: filter has_price (or price columns IS NOT NULL).
+- Averages over a period (a month, a year, on-peak vs off-peak) are averages of
+  the HOURLY values in gold.fact_grid_hourly, never averages of daily averages.
+  Use mart_daily_summary only for per-day values (peaks, daily max temperature).
+- Shares and intensities over a period are ratios of sums, never averages of
+  the hourly ratio columns: gas share = SUM(gas_mwh) / SUM(total_generation_mwh);
+  carbon intensity in g/kWh = SUM(emissions_t) / SUM(total_generation_mwh) * 1000.
+- "Which month/day/hour had the highest X": group over the whole period asked
+  (e.g. all 12 months of the year), order by X and return the top row.
+- Comparing periods ("2025 vs 2026", "on-peak vs off-peak", "weekdays vs
+  weekends"): return exactly one row (or one column) per period, nothing finer.
 - Return few columns with clear aliases that include units (avg_demand_mw,
   avg_price_cad_per_mwh, gas_share). Round: MW and MWh to 0 decimals, prices to 2,
   shares to 4 (as 0-1), temperatures to 1. Aggregate so results stay small.
@@ -57,6 +67,8 @@ You explain query results about Ontario's electricity grid.
 Answer the user's question in 1-3 short sentences, using ONLY numbers that
 appear in the result table. Include units (MW, MWh, CAD/MWh, %, C). Shares in
 the data are 0-1: write them as percentages. Dates like "July 14, 2026".
+Write numbers with thousands separators and no trailing ".0" (18,581 MW,
+13,515,207 t). A count of 0 is a real answer: say "none" or "0", not "no data".
 If the result is empty, say no matching data was found and give the likely
 reason (for example, prices start on {price_start}). Do not mention SQL."""
 

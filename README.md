@@ -5,14 +5,18 @@ demand, generation by fuel type and day-ahead prices from the IESO (Ontario's
 grid operator), joined with hourly weather for Toronto, Ottawa and London.
 
 > **Status:** ingestion (Data Factory), silver and gold (Databricks, Delta) run
-> automatically every day, with history back to Jan 1, 2025. Power BI is next.
+> automatically every day, with history back to Jan 1, 2025. On top: a 5-page
+> Power BI report and "Ask the grid", a guarded AI chatbot (29/29 on its evaluation).
+
+![Grid overview](docs/images/01_grid_overview.png)
 
 ## Questions it answers
 
 - When does Ontario's demand peak, and how does temperature drive it?
 - What is the supply mix (nuclear, hydro, gas, wind, solar) hour by hour?
 - How does price respond to demand and to gas generation?
-- How did pricing change after the May 2025 market redesign?
+- How does price change between on-peak and off-peak hours?
+- And in plain English: "What was the highest demand day in 2026, and how hot was it?"
 
 ## Architecture
 
@@ -33,7 +37,10 @@ grid operator), joined with hourly weather for Toronto, Ottawa and London.
                               │
          ADLS Gen2 ── GOLD     star schema + marts (rebuilt after silver)
                               │
-                          Power BI                         (next)
+               ┌──────────────┴───────────────┐
+           Power BI                      Ask the grid (chatbot)
+   5 pages, Import mode via         LLM writes SQL → guardrails →
+   Databricks SQL warehouse         gold tables → answer + SQL shown
 ```
 
 Governance: Unity Catalog (`ontgrid` catalog, one schema per layer, external
@@ -51,14 +58,64 @@ Git-synced Data Factory JSON.
 | Open-Meteo | forecast API (`past_days=7`) daily + archive API backfill | hour × city | `silver.weather_hourly` |
 
 History runs from 2025-01-01 (backfilled with the same pipelines, different
-parameters). Gold `fact_grid_hourly` joins demand, generation and weather for
-8,759 hours of 2025 and every completed hour of 2026; day-ahead prices exist
-only since the May 2025 market redesign.
+parameters); prices from 2026-07-30, the oldest file IESO still kept. Gold
+`fact_grid_hourly` joins demand, generation, price and weather for 8,759 hours
+of 2025 and every completed hour of 2026.
 
 Gold tables: `dim_date` (with Ontario holidays and business days), `dim_hour`
 (IESO on-peak window), `dim_fuel` (fuel groups, approximate CO2 factors),
 `fact_grid_hourly`, `fact_generation_hourly`, `mart_daily_summary`,
 `mart_temp_vs_demand`, `mart_pipeline_health`.
+
+## Power BI report
+
+| Page | What it shows |
+|---|---|
+| Grid overview | Peak and average demand, daily peak trend, month × hour heatmap, weekday pattern |
+| Supply mix & carbon | Generation by fuel, low-carbon and gas share, daily carbon intensity, gas by hour |
+| Weather vs demand | U-shaped demand vs temperature, demand by 2 °C band, top 10 peak days |
+| Prices | On-peak vs off-peak, price by hour, price vs demand and vs gas share |
+| Pipeline health | Silver runs by status, rows inserted vs updated, full run log |
+
+Key findings (2026 to date):
+- The year's peak, **25,646 MW on July 14**, was also the hottest hour (34.3 °C).
+- Gas supplies **~23%** of generation, rising to 27–34% on the top 10 peak days.
+- Hour-ending 19 averages **~$90/MWh**, about 2.5× the overnight price.
+
+Screenshots: [supply mix](docs/images/02_supply_mix.png) ·
+[weather](docs/images/03_weather_vs_demand.png) · [prices](docs/images/04_prices.png) ·
+[pipeline health](docs/images/05_pipeline_health.png) · [full PDF](powerbi/ontario_grid_report.pdf)
+
+## Ask the grid (AI chatbot)
+
+A guarded text-to-SQL assistant: ask a question in plain English, and the
+model writes SQL, guardrails check it, it runs on the gold tables, and the
+answer comes back in a sentence with the SQL shown for verification.
+
+![Chatbot answer](docs/images/06_chatbot_answer.png)
+
+```
+question ─► LLM writes Databricks SQL ─► guardrails (sqlglot) ─► gold tables
+               ▲   (one repair attempt if blocked or failing)   (DuckDB copy or
+               └──────── LLM explains the result ◄───────────  Databricks warehouse)
+```
+
+- **Guardrails on the parsed SQL tree** (sqlglot): one read-only SELECT, only
+  the 8 gold tables, no file or system functions, max 200 rows. The local DuckDB
+  copy also disables file access after loading, as a second layer.
+  [Refusal example](docs/images/07_chatbot_refusal.png)
+- **Evaluation**: 25 questions with hand-written reference SQL plus 4 requests
+  it must refuse, scored on result values, not wording. **29/29** on the final
+  run with `gemini-3.5-flash-lite` (27–29 across repeated runs: LLM output
+  varies; each failure was analysed and fixed in the prompt or the scorer).
+  [Full results](eval/results.md)
+- **Provider-agnostic**: Gemini, Azure OpenAI, Ollama or any OpenAI-compatible
+  API, and DuckDB or Databricks, switched in `.env` without code changes. The
+  first provider (GitHub Models) was retired mid-project; switching took one setting.
+- **Resilient**: provider outages (503/429) are retried and reported separately
+  from wrong answers.
+
+Setup: [docs/chatbot_setup.md](docs/chatbot_setup.md)
 
 ## Engineering decisions
 
@@ -132,23 +189,45 @@ size a full `CREATE OR REPLACE` takes seconds and can never drift out of sync.
 plain Python in `src/ieso` with 50 unit tests on fixtures built from real IESO
 values. Notebooks only list files, call that code and write Delta tables.
 
+**15. The lakehouse keeps history the source deletes.** IESO keeps only about
+90 days of daily day-ahead price files. Prices were backfilled from the oldest
+file still available (2026-07-30), and the daily pipeline now preserves every
+new file in bronze, so the price history grows past IESO's own window.
+
+**16. The chatbot is checked by code, not trusted.** The model only proposes
+SQL; a parser-based guardrail decides what runs, and an evaluation set with
+reference SQL measures accuracy. Scoring compares result values, so a correct
+answer in a different layout (two rows instead of two columns, `2025-07`
+instead of `July`) still passes, while a wrong year never does.
+
 ## Repo layout
 
 ```
 src/ieso/              parsers, time conversion, silver rules (stdlib only, tested)
-tests/                 50 unit tests + real-format fixtures
 notebooks/             00_setup_catalog.sql (Unity Catalog), 10_silver_load.py, 20_gold_model.sql
 adf/                   Data Factory pipelines, datasets, linked services, trigger (Git-synced)
-scripts/run_local.py   local bronze → silver pipeline (same logic, no cloud)
-docs/                  setup guides
+powerbi/               report (.pbix), PDF export, theme
+chatbot/               Ask the grid: agent, guardrails, DuckDB/Databricks backends, Streamlit app
+eval/                  29 evaluation questions + latest results
+scripts/               run_local.py (local pipeline), export_gold.py, run_eval.py, check_llm.py
+tests/                 90 unit tests: parsers, silver, weather, guardrails, agent, scoring
+docs/                  setup guides and screenshots
 ```
 
 ## Run it
 
 ```bash
-python -m pip install pytest
-python -m pytest                 # 50 tests
+python -m pip install -r chatbot/requirements.txt
+python -m pytest                 # 90 tests, no network or cloud needed
 python scripts/run_local.py      # local pipeline against the live IESO site
+```
+
+Chatbot (after copying `.env.example` to `.env`, see [setup](docs/chatbot_setup.md)):
+
+```bash
+python scripts/export_gold.py    # copy gold tables to data/gold (Parquet)
+streamlit run chatbot/app.py     # http://localhost:8501
+python scripts/run_eval.py       # writes eval/results.md
 ```
 
 In Azure: run `notebooks/00_setup_catalog.sql` once. The Databricks job
@@ -157,7 +236,8 @@ In Azure: run `notebooks/00_setup_catalog.sql` once. The Databricks job
 `weather`), then `20_gold_model` once all four succeed.
 
 Backfill a past year: run `pl_ingest_ieso_file` (e.g. `PUB_GenOutputbyFuelHourly_2025.xml`)
-and `pl_backfill_weather` (`startDate`/`endDate`), then run the job.
+and `pl_backfill_weather` (`startDate`/`endDate`), then run the job. Prices:
+`pl_backfill_ieso_prices` (`startDate`/`endDate`, within IESO's ~90-day window).
 
 ## Roadmap
 
@@ -168,11 +248,12 @@ and `pl_backfill_weather` (`startDate`/`endDate`), then run the job.
 - [x] Day 5: Databricks + Unity Catalog, incremental silver loads with Delta MERGE
 - [x] Day 6: weather in silver, Databricks job with daily schedule
 - [x] Day 7-8: gold star schema and marts, 2025 backfill
-- [ ] Day 9: Power BI report + architecture diagram
-- [ ] Day 10: end-to-end check, demo, write-up
+- [x] Day 9: Power BI report (5 pages)
+- [x] Day 10: "Ask the grid" chatbot with guardrails and evaluation (29/29)
+- [ ] Demo video
 
 ## Data sources
 
 Electricity data © Independent Electricity System Operator (IESO), public
 reports site. Weather data by [Open-Meteo](https://open-meteo.com/) (CC BY 4.0).
-This is an independent portfolio project, not affiliated with either.
+This is an independent portfolio project by Yash Patel, not affiliated with either.

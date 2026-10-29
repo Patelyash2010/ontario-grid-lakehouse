@@ -15,7 +15,7 @@ py --list                         # pick 3.12 or 3.13
 py -3.13 -m venv .venv-chat
 .venv-chat\Scripts\Activate.ps1
 python -m pip install -r chatbot\requirements.txt
-python -m pytest                  # 88 tests, no network needed
+python -m pytest                  # 90 tests, no network needed
 ```
 
 ## 2. Secrets in `.env` (never committed)
@@ -38,7 +38,7 @@ python scripts\export_gold.py     # writes data\gold\*.parquet, then stop wh_pow
 
 ```powershell
 streamlit run chatbot\app.py                 # opens http://localhost:8501
-python scripts\run_eval.py --pause 3         # writes eval\results.md
+python scripts\run_eval.py --pause 8         # writes eval\results.md
 ```
 
 Switch to the live warehouse or another model by editing `.env`:

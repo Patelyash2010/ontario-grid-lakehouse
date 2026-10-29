@@ -118,6 +118,26 @@ def test_results_match_ignores_names_order_and_extra_columns():
     assert not results_match(ref, None)
 
 
+def test_results_match_equivalent_shapes():
+    # q07: one row with two columns vs two rows
+    ref = pd.DataFrame({"on_peak": [61.2], "off_peak": [41.67]})
+    got = pd.DataFrame({"is_on_peak": [True, False], "avg_price": [61.2, 41.67]})
+    assert results_match(ref, got)
+    assert not results_match(ref, got.assign(avg_price=[61.2, 50.0]))
+    # q10: month name vs yyyy-MM
+    assert results_match(pd.DataFrame({"m": ["July"], "v": [18600.0]}),
+                         pd.DataFrame({"year_month": ["2025-07"], "avg": [18600]}))
+    assert not values_match("July", "2025-08")
+    # q18: year as text vs number
+    ref = pd.DataFrame({"year": [2025, 2026], "v": [16622.0, 16975.0]})
+    got = pd.DataFrame({"period": ["2025", "2026"], "avg": [16622, 16975]})
+    assert results_match(ref, got)
+    assert not results_match(ref, got.assign(avg=[16975, 16622]))
+    # whole-number measurements still allow rounding (95.0 g/kWh vs 95.4)
+    assert values_match(95.0, 95.4) and values_match(13515207.0, 13515000)
+    assert not values_match(2025, 2026) and not values_match(17, 18)
+
+
 def test_run_eval_scores_correct_wrong_and_refusals(backend):
     questions = [
         {"id": "q1", "question": "peak?", "sql": PEAK_SQL},
@@ -128,3 +148,22 @@ def test_run_eval_scores_correct_wrong_and_refusals(backend):
     fake = [{"sql": PEAK_SQL}, "ok", {"sql": wrong}, "ok", {"refuse": "not Ontario"}]
     results = run_eval(agent(backend, fake), backend, questions)
     assert [(r.passed, r.outcome) for r in results] == [(True, "correct"), (False, "wrong"), (True, "refused")]
+
+
+def test_transient_errors_are_retried_then_reported(backend):
+    from chatbot.evaluate import is_transient
+    assert is_transient("InternalServerError: Error code: 503 - high demand")
+    assert not is_transient("The query failed: column not found")
+    fake = FakeLLM([])
+    calls = {"n": 0}
+
+    def flaky(messages, json_mode=False, max_tokens=800):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("Error code: 503 - This model is currently experiencing high demand")
+        return Reply(json.dumps({"sql": PEAK_SQL}) if json_mode else "ok", 1, 1, 0.0)
+
+    fake.chat = flaky
+    a = Agent(fake, backend, today=date(2026, 7, 31))
+    res = run_eval(a, backend, [{"id": "q1", "question": "peak?", "sql": PEAK_SQL}], retry_wait_s=0)
+    assert res[0].passed and res[0].outcome == "correct"

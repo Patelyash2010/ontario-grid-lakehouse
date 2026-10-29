@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 
 DEFAULT_MODELS = {
-    "gemini": "gemini-2.5-flash",
+    "gemini": "gemini-3.5-flash-lite",
     "azure": "gpt-4.1-mini",          # the deployment name in Azure
     "ollama": "qwen2.5-coder:3b",
     "openai": "gpt-4.1-mini",
