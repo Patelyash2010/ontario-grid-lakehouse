@@ -67,6 +67,25 @@ Gold tables: `dim_date` (with Ontario holidays and business days), `dim_hour`
 `fact_grid_hourly`, `fact_generation_hourly`, `mart_daily_summary`,
 `mart_temp_vs_demand`, `mart_pipeline_health`.
 
+## Backfill
+
+History was loaded with the **same pipelines as the daily run**, only with
+different parameters, so there is no separate one-off code path:
+
+| Source | How the history is available | Backfill |
+|---|---|---|
+| Demand, generation by fuel | One yearly file per report, revised daily | `pl_ingest_ieso_file` with e.g. `PUB_GenOutputbyFuelHourly_2025.xml` |
+| Weather | Open-Meteo archive API, any date range | `pl_backfill_weather` (`startDate`/`endDate`); files are named with their date range, so they never overwrite the daily files |
+| Day-ahead prices | One file per day, kept ~90 days by IESO | `pl_backfill_ieso_prices`: a ForEach over each day in the range (85 files from 2026-07-30) |
+
+Why this is safe to re-run or overlap with the daily load:
+1. Backfilled files land in bronze like any other download (immutable, dated folder).
+2. The silver loader picks them up through the file manifest: no special handling.
+3. Overlapping hours are resolved by the same rule as daily revisions: `MERGE`
+   keeps the row from the most recently created IESO file, so loading old and
+   new files in any order gives the same result.
+4. Gold is rebuilt from silver, so it is consistent after the next job run.
+
 ## Power BI report
 
 | Page | What it shows |
@@ -85,6 +104,25 @@ Key findings (2026 to date):
 Screenshots: [supply mix](docs/images/02_supply_mix.png) ·
 [weather](docs/images/03_weather_vs_demand.png) · [prices](docs/images/04_prices.png) ·
 [pipeline health](docs/images/05_pipeline_health.png) · [full PDF](powerbi/ontario_grid_report.pdf)
+
+## Data-quality findings
+
+Found while building and checking the pipeline, and handled on purpose:
+
+- **One hour is missing at the source.** IESO's 2025 demand file jumps from
+  `2025-04-30,24` to `2025-05-01,2`: hour 1 of May 1, the first hour of
+  Ontario's redesigned market. Kept as a gap and flagged, not filled in.
+- **An undocumented category appeared once.** `CONTROL ACTIONS` showed up in
+  the fuel report on 2026-07-15 only (24 rows). Quarantine stopped it, and it is
+  now kept but excluded from generation totals.
+- **The source deletes its own history.** IESO keeps only ~90 days of daily
+  price files; this lakehouse keeps them all.
+- **The same hour arrives many times.** The first demand load parsed 37,227 rows
+  for 15,912 unique hours, because every daily file repeats and revises the
+  year, so silver keeps the newest version of each hour.
+- **IESO time ignores daylight saving.** Hours are hour-ending in Eastern
+  Standard Time all year (24 rows even on the spring-forward day), so every
+  table also stores a UTC timestamp for joins.
 
 ## Ask the grid (AI chatbot)
 
@@ -239,18 +277,19 @@ Backfill a past year: run `pl_ingest_ieso_file` (e.g. `PUB_GenOutputbyFuelHourly
 and `pl_backfill_weather` (`startDate`/`endDate`), then run the job. Prices:
 `pl_backfill_ieso_prices` (`startDate`/`endDate`, within IESO's ~90-day window).
 
-## Roadmap
+## What I'd do next
 
-- [x] Day 1: Azure resource group, ADLS Gen2, Key Vault, budget alert
-- [x] Day 2: parsers, manifest, quarantine, tests, local pipeline
-- [x] Day 3: Data Factory: IESO reports → bronze, daily trigger
-- [x] Day 4: weather source (daily + backfill), Data Factory connected to GitHub
-- [x] Day 5: Databricks + Unity Catalog, incremental silver loads with Delta MERGE
-- [x] Day 6: weather in silver, Databricks job with daily schedule
-- [x] Day 7-8: gold star schema and marts, 2025 backfill
-- [x] Day 9: Power BI report (5 pages)
-- [x] Day 10: "Ask the grid" chatbot with guardrails and evaluation (29/29)
-- [ ] Demo video
+- **Trigger, don't schedule:** start the Databricks job when Data Factory finishes
+  (blocked here by the university tenant's service-principal policy), instead of a
+  fixed 10:30 schedule.
+- **Update only changed rows:** daily IESO files re-send the whole year, so MERGE
+  rewrites ~50K unchanged fuel rows a day; compare values before updating.
+- **Data quality alerts:** notify on FAILED runs or quarantined rows (Azure Monitor
+  or a Databricks SQL alert) instead of checking the Pipeline health page.
+- **Chatbot:** host it behind authentication, add charts in answers, and track
+  accuracy over time by running the evaluation on every prompt change (CI).
+- **More sources:** intertie flows (imports/exports) and IESO demand forecasts,
+  to compare forecast vs actual.
 
 ## Data sources
 
