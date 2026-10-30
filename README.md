@@ -20,6 +20,11 @@ grid operator), joined with hourly weather for Toronto, Ottawa and London.
 
 ## Architecture
 
+![Architecture](docs/images/00_architecture.png)
+
+<details>
+<summary>Text version</summary>
+
 ```
  IESO public reports (CSV/XML)          Open-Meteo API (JSON)
             │                                    │
@@ -42,6 +47,8 @@ grid operator), joined with hourly weather for Toronto, Ottawa and London.
    5 pages, Import mode via         LLM writes SQL → guardrails →
    Databricks SQL warehouse         gold tables → answer + SQL shown
 ```
+
+</details>
 
 Governance: Unity Catalog (`ontgrid` catalog, one schema per layer, external
 locations per container). Security: managed identities + RBAC everywhere -
