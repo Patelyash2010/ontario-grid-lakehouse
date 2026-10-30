@@ -57,12 +57,12 @@ Git-synced Data Factory JSON.
 
 ## Data
 
-| Source | Report / endpoint | Grain | Silver table |
-|---|---|---|---|
-| IESO | `Demand/PUB_Demand_<yyyy>.csv` | hour (MW) | `silver.ieso_demand_hourly` |
-| IESO | `GenOutputbyFuelHourly/PUB_GenOutputbyFuelHourly_<yyyy>.xml` | hour × fuel (MWh) | `silver.ieso_fuel_hourly` |
-| IESO | `DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice_<yyyymmdd>.xml` | hour ($/MWh) | `silver.ieso_da_price_hourly` |
-| Open-Meteo | forecast API (`past_days=7`) daily + archive API backfill | hour × city | `silver.weather_hourly` |
+| Source     | Report / endpoint                                                        | Grain             | Silver table                  |
+| ---------- | ------------------------------------------------------------------------ | ----------------- | ----------------------------- |
+| IESO       | `Demand/PUB_Demand_<yyyy>.csv`                                           | hour (MW)         | `silver.ieso_demand_hourly`   |
+| IESO       | `GenOutputbyFuelHourly/PUB_GenOutputbyFuelHourly_<yyyy>.xml`             | hour × fuel (MWh) | `silver.ieso_fuel_hourly`     |
+| IESO       | `DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice_<yyyymmdd>.xml` | hour ($/MWh)      | `silver.ieso_da_price_hourly` |
+| Open-Meteo | forecast API (`past_days=7`) daily + archive API backfill                | hour × city       | `silver.weather_hourly`       |
 
 History runs from 2025-01-01 (backfilled with the same pipelines, different
 parameters); prices from 2026-07-30, the oldest file IESO still kept. Gold
@@ -79,13 +79,14 @@ Gold tables: `dim_date` (with Ontario holidays and business days), `dim_hour`
 History was loaded with the **same pipelines as the daily run**, only with
 different parameters, so there is no separate one-off code path:
 
-| Source | How the history is available | Backfill |
-|---|---|---|
-| Demand, generation by fuel | One yearly file per report, revised daily | `pl_ingest_ieso_file` with e.g. `PUB_GenOutputbyFuelHourly_2025.xml` |
-| Weather | Open-Meteo archive API, any date range | `pl_backfill_weather` (`startDate`/`endDate`); files are named with their date range, so they never overwrite the daily files |
-| Day-ahead prices | One file per day, kept ~90 days by IESO | `pl_backfill_ieso_prices`: a ForEach over each day in the range (85 files from 2026-07-30) |
+| Source                     | How the history is available              | Backfill                                                                                                                      |
+| -------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Demand, generation by fuel | One yearly file per report, revised daily | `pl_ingest_ieso_file` with e.g. `PUB_GenOutputbyFuelHourly_2025.xml`                                                          |
+| Weather                    | Open-Meteo archive API, any date range    | `pl_backfill_weather` (`startDate`/`endDate`); files are named with their date range, so they never overwrite the daily files |
+| Day-ahead prices           | One file per day, kept ~90 days by IESO   | `pl_backfill_ieso_prices`: a ForEach over each day in the range (85 files from 2026-07-30)                                    |
 
 Why this is safe to re-run or overlap with the daily load:
+
 1. Backfilled files land in bronze like any other download (immutable, dated folder).
 2. The silver loader picks them up through the file manifest: no special handling.
 3. Overlapping hours are resolved by the same rule as daily revisions: `MERGE`
@@ -95,15 +96,16 @@ Why this is safe to re-run or overlap with the daily load:
 
 ## Power BI report
 
-| Page | What it shows |
-|---|---|
-| Grid overview | Peak and average demand, daily peak trend, month × hour heatmap, weekday pattern |
+| Page                | What it shows                                                                     |
+| ------------------- | --------------------------------------------------------------------------------- |
+| Grid overview       | Peak and average demand, daily peak trend, month × hour heatmap, weekday pattern  |
 | Supply mix & carbon | Generation by fuel, low-carbon and gas share, daily carbon intensity, gas by hour |
-| Weather vs demand | U-shaped demand vs temperature, demand by 2 °C band, top 10 peak days |
-| Prices | On-peak vs off-peak, price by hour, price vs demand and vs gas share |
-| Pipeline health | Silver runs by status, rows inserted vs updated, full run log |
+| Weather vs demand   | U-shaped demand vs temperature, demand by 2 °C band, top 10 peak days             |
+| Prices              | On-peak vs off-peak, price by hour, price vs demand and vs gas share              |
+| Pipeline health     | Silver runs by status, rows inserted vs updated, full run log                     |
 
 Key findings (2026 to date):
+
 - The year's peak, **25,646 MW on July 14**, was also the hottest hour (34.3 °C).
 - Gas supplies **~23%** of generation, rising to 27–34% on the top 10 peak days.
 - Hour-ending 19 averages **~$90/MWh**, about 2.5× the overnight price.
@@ -176,7 +178,7 @@ and are picked up.
 
 **3. Newest version wins.** IESO's yearly files repeat in every daily folder and
 IESO revises data, so the same hour arrives many times. Rows are deduplicated
-per business key keeping the most recently *created* IESO file, then merged
+per business key keeping the most recently _created_ IESO file, then merged
 with a Delta `MERGE` that only overwrites when the incoming row is newer.
 The first load parsed 37,227 demand rows and kept 15,912.
 
@@ -187,7 +189,7 @@ the IESO `delivery_date` / `hour_ending`, so IESO and weather data join cleanly.
 
 **5. Bad rows are quarantined, not dropped.** Out-of-range hours, invalid dates,
 missing or impossible values go to `quarantine.ieso_rejects` with a reason.
-Negative electricity *prices* are kept - they are valid market outcomes.
+Negative electricity _prices_ are kept - they are valid market outcomes.
 
 **6. Schema changes fail loudly.** If a source changes its layout (or an API
 returns an error), the parser raises, the run is logged as `FAILED`, and
@@ -276,7 +278,7 @@ python scripts/run_eval.py       # writes eval/results.md
 ```
 
 In Azure: run `notebooks/00_setup_catalog.sql` once. The Databricks job
-`job_lakehouse_daily` (10:30 daily) runs `10_silver_load` four times in parallel
+`job_silver_daily` (10:30 daily) runs `10_silver_load` four times in parallel
 (`report` = `Demand`, `GenOutputbyFuelHourly`, `DAHourlyOntarioZonalPrice`,
 `weather`), then `20_gold_model` once all four succeed.
 
